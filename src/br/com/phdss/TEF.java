@@ -62,7 +62,8 @@ public class TEF {
         versao = config.get("paf.versao");
         razao = config.get("sh.razao");
         dados = null;
-
+        
+        // filtro de arquivos
         filtro = new FilenameFilter() {
 
             @Override
@@ -70,6 +71,11 @@ public class TEF {
                 return name.endsWith(".txt");
             }
         };
+
+        // caso o diretorio tmp do tef nao esteja criado
+        if (pathTmp.exists() == false) {
+            pathTmp.mkdir();
+        }
     }
 
     /**
