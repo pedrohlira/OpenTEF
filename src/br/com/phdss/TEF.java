@@ -205,7 +205,7 @@ public class TEF {
         // arquivos pendentes
         for (File arquivo : pathTmp.listFiles(filtro)) {
             if (arquivo.getName().startsWith("pendente")) {
-                String id = arquivo.getName().replaceAll("[^0-9]", "");
+                String id = arquivo.getName().replaceAll("\\D", "");
                 confirmarTransacao(id, false);
             } else if (auto && arquivo.getName().startsWith("backup")) {
                 // retorna os dados do arquivo

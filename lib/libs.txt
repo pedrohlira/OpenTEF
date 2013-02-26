@@ -1,0 +1,7 @@
+Abaixo estao as libs e versoes usadas no sistema
+
+# Outras
+ini4j-0.5.2.jar
+jna.jar
+loj4j-1.2.16.jar
+platform.jar
