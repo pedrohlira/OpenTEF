@@ -26,6 +26,7 @@ public class TEF {
     private static String reqIntPos001;
     private static String respIntPos001;
     private static String respIntPosSts;
+    private static String respAtivo001;
     private static String relatorio;
     private static String titulo;
     private static String nome;
@@ -62,7 +63,12 @@ public class TEF {
         versao = config.get("paf.versao");
         razao = config.get("sh.razao");
         dados = null;
-        
+
+        // caso ativo.001 esteja ativo
+        if (Boolean.valueOf(config.get("tef.ativo.001"))) {
+            respAtivo001 = config.get("tef.resp") + "Ativo.001";
+        }
+
         // filtro de arquivos
         filtro = new FilenameFilter() {
 
@@ -128,13 +134,14 @@ public class TEF {
             }
 
             if (f.exists()) {
-                try (BufferedReader br = new BufferedReader(new FileReader(f))) {
-                    StringBuilder sb = new StringBuilder();
-                    while (br.ready()) {
-                        sb.append(br.readLine()).append(CRLF);
-                    }
-                    ret = sb.toString();
+                Reader reader = new InputStreamReader(new FileInputStream(f));
+                BufferedReader bf = new BufferedReader(reader);
+                StringBuilder sb = new StringBuilder();
+                String linha;
+                while ((linha = bf.readLine()) != null) {
+                    sb.append(linha).append(CRLF);
                 }
+                ret = sb.toString();
             }
         } catch (InterruptedException | IOException ex) {
             log.error("Erro ao ler arquivo do TEF", ex);
@@ -176,7 +183,9 @@ public class TEF {
      */
     public static void deletarArquivo(String arquivo) {
         File f = new File(arquivo);
-        f.delete();
+        if (f.exists()) {
+            f.delete();
+        }
     }
 
     /**
@@ -191,6 +200,7 @@ public class TEF {
      * Metodo que cancela (Nao Confirma) as transacoes pendentes ou backups, as
      * quais nao precisam de impressao de comprovante.
      *
+     * @param auto informa se a chamada foi feita automaticamente.
      * @throws Exception dispara uma excecao caso ocorra algum erro.
      */
     public static void cancelarPendentes(boolean auto) throws Exception {
@@ -249,8 +259,6 @@ public class TEF {
      *
      * @return retorna true se verdadeiro, falso caso contrario, deve-se mostrar
      * uma mensagem ao operador caso nao esteja.
-     * @exception Exception caso nao consiga ler ou escrever os arquivos para o
-     * GP.
      */
     public static boolean gpAtivo() {
         limpar();
@@ -265,6 +273,13 @@ public class TEF {
         salvarArquivo(reqIntPos001, sb.toString());
         boolean resp = lerArquivo(respIntPosSts, 7) != null;
         deletarArquivo(respIntPosSts);
+
+        // caso a verificacao pelo arquivo ativo esteja habilitada
+        if (resp == false && respAtivo001 != null) {
+            File ativo = new File(respAtivo001);
+            resp = ativo.exists();
+        }
+
         return resp;
     }
 
@@ -310,7 +325,7 @@ public class TEF {
         if (resp == null) {
             resp = lerArquivo(pathTmp.getAbsolutePath() + System.getProperty("file.separator") + "pendente" + id + ".txt", 0);
         }
-        Map<String, String> conf = resp != null ? iniToMap(resp) : null;
+        Map<String, String> conf = iniToMap(resp);
 
         // montando o comando
         String id2 = gerarId();
@@ -389,6 +404,7 @@ public class TEF {
     /**
      * Metodo que realiza a abertura da tela de ADM do GP.
      *
+     * @param id o identificador da transacao.
      * @throws Exception caso a resposta do gerenciado avise sobre falhas.
      */
     public static void abrirADM(String id) throws Exception {
@@ -423,6 +439,7 @@ public class TEF {
      *
      * @param id o identificador unico da transacao.
      * @return um mapa de dados em formatos de String.
+     * @throws Exception caso nao consiga ler a resposta.
      */
     public static boolean lerResposta(String id) throws Exception {
         boolean ret = false;
@@ -586,7 +603,7 @@ public class TEF {
             } else {
                 sb.append(dados.get(indice).replace("\"", "")).append(ECF.SL);
                 if (linha == linhas) {
-                    resp = ECF.enviar(comando, sb.toString());
+                    resp = ECF.enviar(comando, sb.toString().replace(".", "").replace(",", "."));
                 }
             }
 
@@ -704,4 +721,69 @@ public class TEF {
     public static void setRespIntPosSts(String respIntPosSts) {
         TEF.respIntPosSts = respIntPosSts;
     }
+
+    public static String getRespAtivo001() {
+        return respAtivo001;
+    }
+
+    public static void setRespAtivo001(String respAtivo001) {
+        TEF.respAtivo001 = respAtivo001;
+    }
+
+    public static String getRelatorio() {
+        return relatorio;
+    }
+
+    public static void setRelatorio(String relatorio) {
+        TEF.relatorio = relatorio;
+    }
+
+    public static String getTitulo() {
+        return titulo;
+    }
+
+    public static void setTitulo(String titulo) {
+        TEF.titulo = titulo;
+    }
+
+    public static String getNome() {
+        return nome;
+    }
+
+    public static void setNome(String nome) {
+        TEF.nome = nome;
+    }
+
+    public static String getVersao() {
+        return versao;
+    }
+
+    public static void setVersao(String versao) {
+        TEF.versao = versao;
+    }
+
+    public static String getRazao() {
+        return razao;
+    }
+
+    public static void setRazao(String razao) {
+        TEF.razao = razao;
+    }
+
+    public static boolean isFolhaDupla() {
+        return folhaDupla;
+    }
+
+    public static void setFolhaDupla(boolean folhaDupla) {
+        TEF.folhaDupla = folhaDupla;
+    }
+
+    public static boolean isLinhaAlinha() {
+        return linhaAlinha;
+    }
+
+    public static void setLinhaAlinha(boolean linhaAlinha) {
+        TEF.linhaAlinha = linhaAlinha;
+    }
+
 }
