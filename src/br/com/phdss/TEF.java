@@ -23,6 +23,7 @@ public class TEF {
 
     private static final String CRLF = "\r\n";
     private static Logger log;
+    private static IECF ecf;
     private static String reqIntPos001;
     private static String respIntPos001;
     private static String respIntPosSts;
@@ -51,6 +52,7 @@ public class TEF {
      */
     public static void setTEF(Map<String, String> config) {
         log = Logger.getLogger(TEF.class);
+        ecf = ECF.getInstancia();
         reqIntPos001 = config.get("tef.req") + "IntPos.001";
         respIntPos001 = config.get("tef.resp") + "IntPos.001";
         respIntPosSts = config.get("tef.resp") + "IntPos.Sts";
@@ -134,14 +136,13 @@ public class TEF {
             }
 
             if (f.exists()) {
-                Reader reader = new InputStreamReader(new FileInputStream(f));
-                BufferedReader bf = new BufferedReader(reader);
-                StringBuilder sb = new StringBuilder();
-                String linha;
-                while ((linha = bf.readLine()) != null) {
-                    sb.append(linha).append(CRLF);
+                try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+                    StringBuilder sb = new StringBuilder();
+                    while (br.ready()) {
+                        sb.append(br.readLine()).append(CRLF);
+                    }
+                    ret = sb.toString();
                 }
-                ret = sb.toString();
             }
         } catch (InterruptedException | IOException ex) {
             log.error("Erro ao ler arquivo do TEF", ex);
@@ -183,9 +184,7 @@ public class TEF {
      */
     public static void deletarArquivo(String arquivo) {
         File f = new File(arquivo);
-        if (f.exists()) {
-            f.delete();
-        }
+        f.delete();
     }
 
     /**
@@ -231,14 +230,14 @@ public class TEF {
                         cancelarTransacao(id, valor, back.get("010-000"), back.get("012-000"), data);
 
                         try {
-                            ECF.enviar(EComandoECF.ECF_FechaRelatorio);
-                            ECF.enviar(EComandoECF.ECF_AbreRelatorioGerencial, relatorio);
-                            TEF.imprimirVias(TEF.getDados(), EComandoECF.ECF_LinhaRelatorioGerencial);
-                            ECF.enviar(EComandoECF.ECF_FechaRelatorio);
+                            ecf.enviar(EComando.ECF_FechaRelatorio);
+                            ecf.enviar(EComando.ECF_AbreRelatorioGerencial, relatorio);
+                            TEF.imprimirVias(TEF.getDados(), EComando.ECF_LinhaRelatorioGerencial);
+                            ecf.enviar(EComando.ECF_FechaRelatorio);
                             confirmarTransacao(id, true);
                             arquivo.delete();
                         } catch (Exception ex) {
-                            ECF.enviar(EComandoECF.ECF_FechaRelatorio);
+                            ecf.enviar(EComando.ECF_FechaRelatorio);
                             confirmarTransacao(id, false);
                         }
                     } else {
@@ -479,7 +478,7 @@ public class TEF {
             InputStream stream = new ByteArrayInputStream(sb.toString().getBytes());
             Wini ini = new Wini(stream);
             return ini.get("TEF");
-        } catch (Exception ex) {
+        } catch (IOException ex) {
             throw new Exception("Dados do arquivo, não são compatíveis.");
         }
     }
@@ -527,7 +526,7 @@ public class TEF {
      * vez sera CC, caso contrario RG
      * @throws Exception caso seja interrompido e seja solicitado para cancelar.
      */
-    public static void imprimirVias(Map<String, String> dados, EComandoECF comando) throws Exception {
+    public static void imprimirVias(Map<String, String> dados, EComando comando) throws Exception {
         int linhas;
         String chave;
         boolean imprimiu = false;
@@ -564,10 +563,10 @@ public class TEF {
 
                 // segunda via para todos exceto relatorio de fechamento
                 if (!dados.get("011-000").equals("1")) {
-                    ECF.enviar(EComandoECF.ECF_PulaLinhas, "3");
+                    ecf.enviar(EComando.ECF_PulaLinhas, "3");
                     imprimiu = imprimirVia(dados, comando, linhas, chave);
                     if (imprimiu) {
-                        ECF.enviar(EComandoECF.ECF_PulaLinhas, "3");
+                        ecf.enviar(EComando.ECF_PulaLinhas, "3");
                     }
                 }
             }
@@ -586,7 +585,7 @@ public class TEF {
      * @throws Exception caso dispare interromper a impressao e cancela os
      * camandos anteriores.
      */
-    private static boolean imprimirVia(Map<String, String> dados, EComandoECF comando, int linhas, String chave) throws Exception {
+    private static boolean imprimirVia(Map<String, String> dados, EComando comando, int linhas, String chave) throws Exception {
         boolean ret = true;
         StringBuilder sb = new StringBuilder();
 
@@ -599,16 +598,16 @@ public class TEF {
             // verifica se faz linha-a-linha ou mando todo o texto de uma vez
             String[] resp = null;
             if (linhaAlinha) {
-                resp = ECF.enviar(comando, dados.get(indice));
+                resp = ecf.enviar(comando, dados.get(indice));
             } else {
-                sb.append(dados.get(indice).replace("\"", "")).append(ECF.SL);
+                sb.append(dados.get(indice).replace("\"", "")).append(IECF.SL);
                 if (linha == linhas) {
-                    resp = ECF.enviar(comando, sb.toString().replace(".", "").replace(",", "."));
+                    resp = ecf.enviar(comando, sb.toString().replace(".", "").replace(",", "."));
                 }
             }
 
             // caso tenha enviado e resposta com erro
-            while (resp != null && ECF.ERRO.equals(resp[0])) {
+            while (resp != null && IECF.ERRO.equals(resp[0])) {
                 bloquear(false);
                 int escolha = JOptionPane.showOptionDialog(null, "Impressora não responde, tentar novamente?", "TEF",
                         JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, new String[]{"SIM", "NÃO"}, JOptionPane.YES_OPTION);
@@ -616,10 +615,10 @@ public class TEF {
                 if (escolha == JOptionPane.YES_OPTION) {
                     ret = false;
                     // fecha/ abre
-                    resp = ECF.enviar(EComandoECF.ECF_FechaRelatorio);
-                    if (ECF.OK.equals(resp[0])) {
-                        resp = ECF.enviar(EComandoECF.ECF_AbreRelatorioGerencial, relatorio);
-                        if (ECF.OK.equals(resp[0])) {
+                    resp = ecf.enviar(EComando.ECF_FechaRelatorio);
+                    if (IECF.OK.equals(resp[0])) {
+                        resp = ecf.enviar(EComando.ECF_AbreRelatorioGerencial, relatorio);
+                        if (IECF.OK.equals(resp[0])) {
                             break;
                         }
                     }
