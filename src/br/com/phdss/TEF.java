@@ -10,12 +10,13 @@ import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Map;
+import java.util.Properties;
 import javax.swing.JOptionPane;
 import org.apache.log4j.Logger;
 import org.ini4j.Wini;
 
 /**
- * Classe que representa o TEF no sistema e todas suas funcionalidiades.
+ * Classe que representa o TEF no sistema e todas suas funcionalidades.
  *
  * @author Pedro H. Lira
  */
@@ -28,14 +29,16 @@ public class TEF {
     private static String respIntPos001;
     private static String respIntPosSts;
     private static String respAtivo001;
-    private static String relatorio;
-    private static String titulo;
-    private static String nome;
-    private static String versao;
-    private static String razao;
+    private static String appNome;
+    private static String appVersao;
+    private static String appRazao;
+    private static String tefRel;
+    private static String tefTitulo;
+    private static String tefVersao;
+    private static String tefRegistro;
+    private static File tefTmp;
     private static Map<String, String> dados;
     private static FilenameFilter filtro;
-    private static File pathTmp;
     private static boolean folhaDupla;
     private static boolean linhaAlinha;
 
@@ -50,25 +53,27 @@ public class TEF {
      *
      * @param config o mapa de dados de config.
      */
-    public static void setTEF(Map<String, String> config) {
+    public static void setTEF(Properties config) {
         log = Logger.getLogger(TEF.class);
         ecf = ECF.getInstancia();
-        reqIntPos001 = config.get("tef.req") + "IntPos.001";
-        respIntPos001 = config.get("tef.resp") + "IntPos.001";
-        respIntPosSts = config.get("tef.resp") + "IntPos.Sts";
-        relatorio = config.get("ecf.reltef");
-        titulo = config.get("tef.titulo");
-        pathTmp = new File(config.get("tef.tmp"));
-        folhaDupla = config.get("ecf.folhas").equals("2");
-        linhaAlinha = Boolean.valueOf(config.get("tef.linha"));
-        nome = config.get("paf.nome");
-        versao = config.get("paf.versao");
-        razao = config.get("sh.razao");
+        reqIntPos001 = config.getProperty("tef.req") + "IntPos.001";
+        respIntPos001 = config.getProperty("tef.resp") + "IntPos.001";
+        respIntPosSts = config.getProperty("tef.resp") + "IntPos.Sts";
+        tefRel = config.getProperty("ecf.reltef");
+        tefTitulo = config.getProperty("tef.titulo");
+        tefVersao = config.getProperty("tef.versao");
+        tefRegistro = config.getProperty("tef.registro");
+        tefTmp = new File(config.getProperty("tef.tmp"));
+        folhaDupla = config.getProperty("ecf.folhas").equals("2");
+        linhaAlinha = Boolean.valueOf(config.getProperty("tef.linha"));
+        appNome = config.getProperty("paf.nome");
+        appVersao = config.getProperty("paf.versao");
+        appRazao = config.getProperty("sh.razao");
         dados = null;
 
         // caso ativo.001 esteja ativo
-        if (Boolean.valueOf(config.get("tef.ativo.001"))) {
-            respAtivo001 = config.get("tef.resp") + "Ativo.001";
+        if (Boolean.valueOf(config.getProperty("tef.ativo.001"))) {
+            respAtivo001 = config.getProperty("tef.resp") + "Ativo.001";
         }
 
         // filtro de arquivos
@@ -81,8 +86,8 @@ public class TEF {
         };
 
         // caso o diretorio tmp do tef nao esteja criado
-        if (pathTmp.exists() == false) {
-            pathTmp.mkdir();
+        if (tefTmp.exists() == false) {
+            tefTmp.mkdir();
         }
     }
 
@@ -174,7 +179,7 @@ public class TEF {
      * @param id deve-se passar o identificador do pendente.
      */
     public static void deletarPendente(String id) {
-        deletarArquivo(pathTmp.getAbsolutePath() + System.getProperty("file.separator") + "pendente" + id + ".txt");
+        deletarArquivo(tefTmp.getAbsolutePath() + System.getProperty("file.separator") + "pendente" + id + ".txt");
     }
 
     /**
@@ -212,7 +217,7 @@ public class TEF {
         }
 
         // arquivos pendentes
-        for (File arquivo : pathTmp.listFiles(filtro)) {
+        for (File arquivo : tefTmp.listFiles(filtro)) {
             if (arquivo.getName().startsWith("pendente")) {
                 String id = arquivo.getName().replaceAll("\\D", "");
                 confirmarTransacao(id, false);
@@ -231,7 +236,7 @@ public class TEF {
 
                         try {
                             ecf.enviar(EComando.ECF_FechaRelatorio);
-                            ecf.enviar(EComando.ECF_AbreRelatorioGerencial, relatorio);
+                            ecf.enviar(EComando.ECF_AbreRelatorioGerencial, tefRel);
                             TEF.imprimirVias(TEF.getDados(), EComando.ECF_LinhaRelatorioGerencial);
                             ecf.enviar(EComando.ECF_FechaRelatorio);
                             confirmarTransacao(id, true);
@@ -266,6 +271,8 @@ public class TEF {
         StringBuilder sb = new StringBuilder();
         sb.append("000-000 = ATV").append(CRLF);
         sb.append("001-000 = ").append(gerarId()).append(CRLF);
+        sb.append("733-000 = ").append(tefVersao).append(CRLF);
+        sb.append("738-000 = ").append(tefRegistro).append(CRLF);
         sb.append("999-999 = 0").append(CRLF);
 
         // gravando no arquivo
@@ -299,10 +306,12 @@ public class TEF {
         sb.append("001-000 = ").append(id).append(CRLF);
         sb.append("003-000 = ").append(formatarValor(valor)).append(CRLF);
         sb.append("004-000 = 0").append(CRLF);
-        sb.append("701-000 = ").append(nome).append(" ").append(versao).append(CRLF);
         sb.append("706-000 = 2").append(CRLF);
-        sb.append("716-000 = ").append(razao).append(CRLF);
-        //sb.append("777-777 = teste REDCARD").append(CRLF); // usado somente na homologacao
+        sb.append("716-000 = ").append(appRazao).append(CRLF);
+        sb.append("733-000 = ").append(tefVersao).append(CRLF);
+        sb.append("735-000 = ").append(appNome).append(CRLF);
+        sb.append("736-000 = ").append(appVersao).append(CRLF);
+        sb.append("738-000 = ").append(tefRegistro).append(CRLF);
         sb.append("999-999 = 0").append(CRLF);
         comandoTEF(id, sb.toString(), false);
     }
@@ -322,7 +331,7 @@ public class TEF {
         // le o arquivo pendente
         String resp = lerArquivo(respIntPos001, 0);
         if (resp == null) {
-            resp = lerArquivo(pathTmp.getAbsolutePath() + System.getProperty("file.separator") + "pendente" + id + ".txt", 0);
+            resp = lerArquivo(tefTmp.getAbsolutePath() + System.getProperty("file.separator") + "pendente" + id + ".txt", 0);
         }
         Map<String, String> conf = iniToMap(resp);
 
@@ -334,6 +343,8 @@ public class TEF {
         sb.append("010-000 = ").append(conf.get("010-000")).append(CRLF);
         sb.append("012-000 = ").append(conf.get("012-000")).append(CRLF);
         sb.append("027-000 = ").append(conf.get("027-000")).append(CRLF);
+        sb.append("733-000 = ").append(tefVersao).append(CRLF);
+        sb.append("738-000 = ").append(tefRegistro).append(CRLF);
         sb.append("999-999 = 0").append(CRLF);
         comandoTEF(id2, sb.toString(), true);
 
@@ -372,32 +383,14 @@ public class TEF {
         sb.append("012-000 = ").append(nsu).append(CRLF);
         sb.append("022-000 = ").append(new SimpleDateFormat("ddMMyyyy").format(data)).append(CRLF);
         sb.append("023-000 = ").append(new SimpleDateFormat("HHmmss").format(data)).append(CRLF);
-        sb.append("701-000 = ").append(nome).append(" ").append(versao).append(CRLF);
         sb.append("706-000 = 2").append(CRLF);
-        sb.append("716-000 = ").append(razao).append(CRLF);
+        sb.append("716-000 = ").append(appRazao).append(CRLF);
+        sb.append("733-000 = ").append(tefVersao).append(CRLF);
+        sb.append("735-000 = ").append(appNome).append(CRLF);
+        sb.append("736-000 = ").append(appVersao).append(CRLF);
+        sb.append("738-000 = ").append(tefRegistro).append(CRLF);
         sb.append("999-999 = 0").append(CRLF);
         comandoTEF(id, sb.toString(), true);
-    }
-
-    /**
-     * Metodo que realiza a transacao de consulta de cheque.
-     *
-     * @param id um novo identificador unico da transacao.
-     * @param valor o valor a ser usado esta transacao.
-     * @throws Exception caso a resposta do gerenciado avise sobre falhas.
-     */
-    public static void consultarCheque(String id, double valor) throws Exception {
-        // montando o comando
-        StringBuilder sb = new StringBuilder();
-        sb.append("000-000 = CHQ").append(CRLF);
-        sb.append("001-000 = ").append(id).append(CRLF);
-        sb.append("003-000 = ").append(formatarValor(valor)).append(CRLF);
-        sb.append("004-000 = 0").append(CRLF);
-        sb.append("701-000 = ").append(nome).append(" ").append(versao).append(CRLF);
-        sb.append("706-000 = 2").append(CRLF);
-        sb.append("716-000 = ").append(razao).append(CRLF);
-        sb.append("999-999 = 0").append(CRLF);
-        comandoTEF(id, sb.toString(), false);
     }
 
     /**
@@ -411,9 +404,13 @@ public class TEF {
         StringBuilder sb = new StringBuilder();
         sb.append("000-000 = ADM").append(CRLF);
         sb.append("001-000 = ").append(id).append(CRLF);
-        sb.append("701-000 = ").append(nome).append(" ").append(versao).append(CRLF);
+        sb.append("701-000 = ").append(appNome).append(" ").append(appVersao).append(CRLF);
         sb.append("706-000 = 2").append(CRLF);
-        sb.append("716-000 = ").append(razao).append(CRLF);
+        sb.append("716-000 = ").append(appRazao).append(CRLF);
+        sb.append("733-000 = ").append(tefVersao).append(CRLF);
+        sb.append("735-000 = ").append(appNome).append(CRLF);
+        sb.append("736-000 = ").append(appVersao).append(CRLF);
+        sb.append("738-000 = ").append(tefRegistro).append(CRLF);
         sb.append("999-999 = 0").append(CRLF);
         comandoTEF(id, sb.toString(), false);
     }
@@ -451,7 +448,7 @@ public class TEF {
                 // analisa resposta
                 if (dados.get("009-000").equals("0")) {
                     // salva o arquivo pendente
-                    salvarArquivo(pathTmp.getAbsolutePath() + System.getProperty("file.separator") + "pendente" + id + ".txt", resp);
+                    salvarArquivo(tefTmp.getAbsolutePath() + System.getProperty("file.separator") + "pendente" + id + ".txt", resp);
                     ret = true;
                 } else if (!dados.get("030-000").equals("")) {
                     deletarArquivo(respIntPos001);
@@ -474,8 +471,8 @@ public class TEF {
     public static Map<String, String> iniToMap(String texto) throws Exception {
         // pega os dados
         try {
-            StringBuilder sb = new StringBuilder("[TEF]").append(CRLF).append(texto);
-            InputStream stream = new ByteArrayInputStream(sb.toString().getBytes());
+            String sb = "[TEF]\r\n" + texto;
+            InputStream stream = new ByteArrayInputStream(sb.getBytes());
             Wini ini = new Wini(stream);
             return ini.get("TEF");
         } catch (IOException ex) {
@@ -609,7 +606,7 @@ public class TEF {
             // caso tenha enviado e resposta com erro
             while (resp != null && IECF.ERRO.equals(resp[0])) {
                 bloquear(false);
-                int escolha = JOptionPane.showOptionDialog(null, "Impressora não responde, tentar novamente?", "TEF",
+                int escolha = JOptionPane.showOptionDialog(null, "Erro na impressão, tentar novamente?\nDetalhes: " + resp[1], "TEF",
                         JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, new String[]{"SIM", "NÃO"}, JOptionPane.YES_OPTION);
                 bloquear(true);
                 if (escolha == JOptionPane.YES_OPTION) {
@@ -617,7 +614,7 @@ public class TEF {
                     // fecha/ abre
                     resp = ecf.enviar(EComando.ECF_FechaRelatorio);
                     if (IECF.OK.equals(resp[0])) {
-                        resp = ecf.enviar(EComando.ECF_AbreRelatorioGerencial, relatorio);
+                        resp = ecf.enviar(EComando.ECF_AbreRelatorioGerencial, tefRel);
                         if (IECF.OK.equals(resp[0])) {
                             break;
                         }
@@ -659,15 +656,15 @@ public class TEF {
                 deletarArquivo(respIntPosSts);
                 String tipoComando = comando.substring(0, 13);
                 if (!(tipoComando.endsWith("CNF") || tipoComando.endsWith("NCN"))) {
-                    // foca no GP
-                    focar(titulo);
                     do {
+                        // foca no GP
+                        focar(tefTitulo);
                         Thread.sleep(1000);
                     } while (!lerResposta(id));
                 }
             } else {
                 bloquear(false);
-                JOptionPane.showMessageDialog(null, "Gerenciador Padrão não está ativo!\nPor favor ative-o para continuar.", "TEF", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(null, "Sistema TEF não está ativo!\nPor favor ative-o para continuar.", "TEF", JOptionPane.INFORMATION_MESSAGE);
                 bloquear(trava);
             }
         } while (!ret);
@@ -690,11 +687,11 @@ public class TEF {
     }
 
     public static File getPathTmp() {
-        return pathTmp;
+        return tefTmp;
     }
 
     public static void setPathTmp(File pathTmp) {
-        TEF.pathTmp = pathTmp;
+        TEF.tefTmp = pathTmp;
     }
 
     public static String getReqIntPos001() {
@@ -730,43 +727,43 @@ public class TEF {
     }
 
     public static String getRelatorio() {
-        return relatorio;
+        return tefRel;
     }
 
     public static void setRelatorio(String relatorio) {
-        TEF.relatorio = relatorio;
+        TEF.tefRel = relatorio;
     }
 
     public static String getTitulo() {
-        return titulo;
+        return tefTitulo;
     }
 
     public static void setTitulo(String titulo) {
-        TEF.titulo = titulo;
+        TEF.tefTitulo = titulo;
     }
 
     public static String getNome() {
-        return nome;
+        return appNome;
     }
 
     public static void setNome(String nome) {
-        TEF.nome = nome;
+        TEF.appNome = nome;
     }
 
     public static String getVersao() {
-        return versao;
+        return appVersao;
     }
 
     public static void setVersao(String versao) {
-        TEF.versao = versao;
+        TEF.appVersao = versao;
     }
 
     public static String getRazao() {
-        return razao;
+        return appRazao;
     }
 
     public static void setRazao(String razao) {
-        TEF.razao = razao;
+        TEF.appRazao = razao;
     }
 
     public static boolean isFolhaDupla() {
