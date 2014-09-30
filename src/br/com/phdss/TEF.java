@@ -615,6 +615,7 @@ public class TEF {
                     resp = ecf.enviar(EComando.ECF_FechaRelatorio);
                     if (IECF.OK.equals(resp[0])) {
                         resp = ecf.enviar(EComando.ECF_AbreRelatorioGerencial, tefRel);
+                        comando = EComando.ECF_LinhaRelatorioGerencial;
                         if (IECF.OK.equals(resp[0])) {
                             break;
                         }
